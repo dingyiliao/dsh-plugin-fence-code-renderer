@@ -13,29 +13,28 @@
 
 ## 预览
 
-[![在 DSH 会话中渲染的图表](docs/preview.svg)](docs/preview.svg)
+启用插件后，这段 Mermaid 围栏在 GitHub 和 DSH 会话中都能渲染为图表：
 
-## 安装
-
-需要 DSH `>=0.2.2-rc.3 <0.3.0`。本仓库是本地插件项目，`package.json` 标记为私有，未发布到 npm。
-
-```sh
-git clone https://github.com/dingyiliao/dsh-plugin-fence-code-renderer.git
-cd dsh-plugin-fence-code-renderer
-npm run build
-```
-
-在 DSH Web 中打开 **Plugins → Add plugin**，选择克隆后的项目目录。然后新建或重新打开会话，即可使用渲染器。
-
-例如，发送以下 Markdown 围栏：
-
-````markdown
-```flowchart TD
+```mermaid
+flowchart TD
   Start[开始] --> Check{成功?}
   Check -->|是| Done[完成]
   Check -->|否| Retry((重试))
+  Retry --> Check
 ```
-````
+
+## 安装
+
+需要 DSH `>=0.2.2-rc.3 <0.3.0`。
+
+- **GUI**：在 DSH Web 中打开 **Plugins → Add plugin**，输入 `https://github.com/dingyiliao/dsh-plugin-fence-code-renderer`。
+- **CLI**：若使用其他 profile，请替换 `desktop`：
+
+  ```sh
+  dsh plugin --profile desktop add https://github.com/dingyiliao/dsh-plugin-fence-code-renderer
+  ```
+
+新建或重新打开会话后，即可使用渲染器。
 
 ## 支持的语法
 

@@ -13,29 +13,28 @@ Render diagram code fences as theme-aware SVGs in [DeepSeek Harness](https://git
 
 ## Preview
 
-[![A diagram rendered inside a DSH conversation](docs/preview.svg)](docs/preview.svg)
+This Mermaid fence renders as a diagram on GitHub and in a DSH conversation with the plugin enabled:
 
-## Install
-
-Requires DSH `>=0.2.2-rc.3 <0.3.0`. This repository is a local plugin project; its package is private and is not published to npm.
-
-```sh
-git clone https://github.com/dingyiliao/dsh-plugin-fence-code-renderer.git
-cd dsh-plugin-fence-code-renderer
-npm run build
-```
-
-In DSH Web, open **Plugins → Add plugin** and select the cloned project directory. Then start or reopen a conversation to use the renderer.
-
-For example, send this Markdown fence:
-
-````markdown
-```flowchart TD
+```mermaid
+flowchart TD
   Start[Start] --> Check{Success?}
   Check -->|Yes| Done[Done]
   Check -->|No| Retry((Retry))
+  Retry --> Check
 ```
-````
+
+## Install
+
+Requires DSH `>=0.2.2-rc.3 <0.3.0`.
+
+- **GUI**: in DSH Web, open **Plugins → Add plugin** and enter `https://github.com/dingyiliao/dsh-plugin-fence-code-renderer`.
+- **CLI**: replace `desktop` with your profile name if needed:
+
+  ```sh
+  dsh plugin --profile desktop add https://github.com/dingyiliao/dsh-plugin-fence-code-renderer
+  ```
+
+Start or reopen a conversation to use the renderer.
 
 ## Supported syntax
 
