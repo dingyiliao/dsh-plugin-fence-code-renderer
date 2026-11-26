@@ -57,7 +57,7 @@ function parseAndLayoutDiagram(lang: string, source: string): DiagramLayout | nu
   return layoutFlowchart(parseFlowchart(source))
 }
 
-function dispatchPlantUml(source, lines) {
+function dispatchPlantUml(source: string, lines: string[]) {
   // Reject PlantUML activity / swimlane / unsupported DSLs cleanly
   for (const raw of lines) {
     const t = raw.trim()

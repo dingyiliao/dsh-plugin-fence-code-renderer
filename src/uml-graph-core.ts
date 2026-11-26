@@ -5,6 +5,11 @@
 
 import type { ParsedGraph } from './flowchart-core.ts'
 
+type GraphNode = ParsedGraph['nodes'][number]
+type GraphEdge = ParsedGraph['edges'][number]
+type GraphSubgraph = NonNullable<ParsedGraph['subgraphs']>[number]
+type ClassNode = GraphNode & { sections: { stereotype: string; title: string; attrs: string[]; methods: string[] } }
+
 const UML_UNSUPPORTED = /^(?:!include|!define|!pragma|!procedure|!function|@startmindmap|@startwbs|@startgantt|@startsalt|@startjson|@startyaml|@startditaa|repeat\b|while\s*\(|fork\b|\|[^|]+\||nwdiag\b|salt\b)/iu
 
 // ==================== Class Diagram (Mermaid + PlantUML) ====================
@@ -19,17 +24,17 @@ function parseClassDiagram(source: string): ParsedGraph | null {
   if (typeof source !== 'string' || source.length > 20_000) return null
   const rawLines = source.replace(/\r/g, '').replace(/%%\{[\s\S]*?\}%%/gu, '').split('\n')
 
-  const nodes = []
-  const byId = new Map()
-  const edges = []
-  const subgraphs = []
-  const sgStack = []
+  const nodes: ClassNode[] = []
+  const byId = new Map<string, ClassNode>()
+  const edges: GraphEdge[] = []
+  const subgraphs: GraphSubgraph[] = []
+  const sgStack: string[] = []
   let direction = 'TD'
   let sgCounter = 0
-  let currentClass = null
+  let currentClass: ClassNode | null = null
   let inSkipBlock = false
 
-  const ensureClassNode = (id, displayTitle = '', stereotype = '') => {
+  const ensureClassNode = (id: string, displayTitle = '', stereotype = '') => {
     const cleanId = String(id ?? '').trim()
     if (!cleanId || !/^[A-Za-z0-9_][\w.-]*$/u.test(cleanId)) return null
     let node = byId.get(cleanId)
@@ -187,7 +192,7 @@ function parseClassDiagram(source: string): ParsedGraph | null {
   return { direction, nodes, edges, subgraphs }
 }
 
-function decodeClassRelation(op, left, right) {
+function decodeClassRelation(op: string, left: string, right: string) {
   const dashed = op.includes('..')
   // Keep inheritance pointing from child -> parent so child sits below parent in TD layout,
   // OR preserve arrow direction with hollow_triangle marker on parent!
@@ -229,17 +234,17 @@ function parseStateDiagram(source: string): ParsedGraph | null {
   if (typeof source !== 'string' || source.length > 20_000) return null
   const rawLines = source.replace(/\r/g, '').replace(/%%\{[\s\S]*?\}%%/gu, '').split('\n')
 
-  const nodes = []
-  const byId = new Map()
-  const edges = []
-  const subgraphs = []
-  const sgStack = []
+  const nodes: GraphNode[] = []
+  const byId = new Map<string, GraphNode>()
+  const edges: GraphEdge[] = []
+  const subgraphs: GraphSubgraph[] = []
+  const sgStack: string[] = []
   let direction = 'TD'
   let startCount = 0
   let endCount = 0
   let inNote = false
 
-  const ensureStateNode = (id, label = '', shape = 'rounded') => {
+  const ensureStateNode = (id: string, label = '', shape = 'rounded') => {
     let node = byId.get(id)
     if (node === undefined) {
       if (nodes.length >= 80) return null
@@ -367,13 +372,13 @@ function parseErDiagram(source: string): ParsedGraph | null {
   if (typeof source !== 'string' || source.length > 20_000) return null
   const rawLines = source.replace(/\r/g, '').replace(/%%\{[\s\S]*?\}%%/gu, '').split('\n')
 
-  const nodes = []
-  const byId = new Map()
-  const edges = []
+  const nodes: ClassNode[] = []
+  const byId = new Map<string, ClassNode>()
+  const edges: GraphEdge[] = []
   let direction = 'TD'
-  let currentEntity = null
+  let currentEntity: ClassNode | null = null
 
-  const ensureEntity = (id) => {
+  const ensureEntity = (id: string) => {
     let node = byId.get(id)
     if (node === undefined) {
       if (nodes.length >= 80) return null
@@ -445,7 +450,7 @@ function parseErDiagram(source: string): ParsedGraph | null {
   return { direction, nodes, edges, subgraphs: [] }
 }
 
-function formatErCard(sym) {
+function formatErCard(sym: string) {
   if (sym === '||') return '1'
   if (sym === '|o' || sym === 'o|') return '0..1'
   if (sym === '}|' || sym === '|{') return '1..*'
@@ -462,16 +467,16 @@ function parsePlantUmlGraph(source: string): ParsedGraph | null {
   if (typeof source !== 'string' || source.length > 20_000) return null
   const rawLines = source.replace(/\r/g, '').split('\n')
 
-  const nodes = []
-  const byId = new Map()
-  const edges = []
-  const subgraphs = []
-  const sgStack = []
+  const nodes: GraphNode[] = []
+  const byId = new Map<string, GraphNode>()
+  const edges: GraphEdge[] = []
+  const subgraphs: GraphSubgraph[] = []
+  const sgStack: string[] = []
   let direction = 'TD'
   let sgCounter = 0
   let inSkipBlock = false
 
-  const ensureNode = (id, label, shape) => {
+  const ensureNode = (id: string, label: string, shape: string) => {
     const cleanId = String(id ?? '').trim()
     if (!cleanId || !/^[A-Za-z0-9_][\w.-]*$/u.test(cleanId)) return null
     let node = byId.get(cleanId)
@@ -588,7 +593,7 @@ function parsePlantUmlGraph(source: string): ParsedGraph | null {
   return { direction, nodes, edges, subgraphs }
 }
 
-function decodePlantEndpoint(token) {
+function decodePlantEndpoint(token: string) {
   const t = token.trim()
   if (t.startsWith('[') && t.endsWith(']')) {
     const label = t.slice(1, -1).trim()
@@ -601,7 +606,7 @@ function decodePlantEndpoint(token) {
   return { id: t, label: t, shape: 'rect' }
 }
 
-function makeSafePlantId(label) {
+function makeSafePlantId(label: string) {
   const ascii = label.replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '')
   if (ascii && /^[A-Za-z0-9_]/u.test(ascii)) return ascii
   let hash = 0
@@ -609,7 +614,7 @@ function makeSafePlantId(label) {
   return 'p_' + Math.abs(hash).toString(36)
 }
 
-function stripUmlComment(line) {
+function stripUmlComment(line: string) {
   const trimmed = line.trim()
   if (trimmed.startsWith('%%') || trimmed.startsWith("'")) return ''
   let quote = ''

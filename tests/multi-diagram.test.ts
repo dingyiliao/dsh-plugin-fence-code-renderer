@@ -77,7 +77,7 @@ test('renders Mermaid and PlantUML class diagrams with UML markers and compartme
 
   expectLayoutKind(mLayout, 'flowchart')
   assert.equal(mLayout.nodes[0].shape, 'uml_class')
-  assert.equal(mLayout.nodes[0].sections.stereotype, 'abstract')
+  assert.equal(mLayout.nodes[0].sections?.stereotype, 'abstract')
   assert.equal(mLayout.edges[0].startMarker, 'hollow_triangle')
 
   const pLayout = parseAndLayoutDiagram('puml', [

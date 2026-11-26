@@ -1,15 +1,35 @@
-// These names are supplied by the modules injected at the build marker below.
-type DiagramLayout = NonNullable<ReturnType<typeof import('./diagram-dispatcher.ts').parseAndLayoutDiagram>>
-declare const SUPPORTED_FENCE_LANGUAGES: string[]
-declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLayout | null
+import { SUPPORTED_FENCE_LANGUAGES, parseAndLayoutDiagram } from './diagram-dispatcher.ts'
+
+type DiagramLayout = NonNullable<ReturnType<typeof parseAndLayoutDiagram>>
+type SequenceLayout = Extract<DiagramLayout, { kind: 'sequence' }>
+type GraphLayout = Extract<DiagramLayout, { kind: 'flowchart' }>
+type SequenceParticipant = SequenceLayout['participants'][number]
+type SequenceFragment = SequenceLayout['fragments'][number]
+type SequenceEvent = SequenceLayout['events'][number]
+type GraphNode = GraphLayout['nodes'][number]
+type GraphEdge = GraphLayout['edges'][number]
+type GraphSubgraph = GraphLayout['subgraphs'][number]
+type MarkerIds = Record<'arrowEnd' | 'arrowStart' | 'hollowTriEnd' | 'hollowTriStart' | 'filledDiaEnd' | 'filledDiaStart' | 'hollowDiaEnd' | 'hollowDiaStart', string>
+type ReactRuntime = {
+  createElement: (type: string, props: Record<string, unknown> | null, ...children: unknown[]) => unknown
+  useId: () => string
+  useMemo: <T>(factory: () => T, deps: unknown[]) => T
+}
+type FenceProps = { lang: string; code: string; streaming: boolean; children: unknown; t: (key: string) => string }
+type DshContext = {
+  effect: (register: () => unknown, name: string) => unknown
+  locale: { register: (namespace: string, dictionaries: Record<string, Record<string, string>>) => unknown }
+  slots: {
+    inject: (name: string, register: () => unknown) => unknown
+    register: (options: Record<string, unknown>, component: (props: FenceProps) => unknown) => unknown
+  }
+}
 
 (window as unknown as Window & { __ModuleLoader__: { load(module: unknown): void } }).__ModuleLoader__.load({
   id: '@local/dsh-markdown-flowchart',
-  factory(require) {
-    const React = require('react')
+  factory(requireModule: (name: string) => ReactRuntime) {
+    const React = requireModule('react')
     const h = React.createElement
-
-    /* __DSH_FLOWCHART_CORE__ */
 
     const FLOWCHART_ID = '@local/dsh-markdown-flowchart/fence'
     const FLOWCHART_NS = 'markdownFlowchart'
@@ -28,7 +48,7 @@ declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLay
     }
 
     /** Render a settled diagram fence, preserving the stock code block while streaming or on parse/layout fallback. */
-    function FlowchartFence({ lang, code, streaming, children, t }) {
+    function FlowchartFence({ lang, code, streaming, children, t }: FenceProps) {
       const markerBase = 'dsh-fc-' + React.useId().replace(/[^A-Za-z0-9_-]/g, '')
       const diagram = React.useMemo(() => {
         if (streaming) return null
@@ -68,7 +88,7 @@ declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLay
         : renderGraphSvg(diagram, markerBase))
     }
 
-    function svgStyleForWidth(width) {
+    function svgStyleForWidth(width: number) {
       return {
         display: 'block',
         margin: '0 auto',
@@ -80,7 +100,7 @@ declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLay
 
     // ==================== Sequence Diagram SVG Renderer ====================
 
-    function renderSequenceSvg(seq, markerBase) {
+    function renderSequenceSvg(seq: SequenceLayout, markerBase: string) {
       const filledArrowId = markerBase + '-seq-filled'
       const openArrowId = markerBase + '-seq-open'
       const crossEndId = markerBase + '-seq-cross'
@@ -172,7 +192,7 @@ declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLay
       )
     }
 
-    function renderSeqParticipant(p, topY, pos) {
+    function renderSeqParticipant(p: SequenceParticipant, topY: number, pos: string) {
       const cx = p.x
       const w = p.width
       const ht = p.height
@@ -244,7 +264,7 @@ declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLay
       )
     }
 
-    function renderSeqFragment(frag, key) {
+    function renderSeqFragment(frag: SequenceFragment, key: number) {
       const badgeW = Math.max(42, frag.kind.length * 8 + 18)
       const badgePath = 'M ' + frag.x + ' ' + frag.y +
         ' L ' + (frag.x + badgeW) + ' ' + frag.y +
@@ -306,7 +326,7 @@ declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLay
       )
     }
 
-    function renderSeqEvent(ev, totalWidth, filledArrowId, openArrowId, crossEndId, key) {
+    function renderSeqEvent(ev: SequenceEvent, totalWidth: number, filledArrowId: string, openArrowId: string, crossEndId: string, key: number) {
       if (ev.type === 'divider') {
         const pillW = Math.max(60, ev.text.length * 10 + 28)
         return h('g', { key: 'div:' + key },
@@ -442,7 +462,7 @@ declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLay
       )
     }
 
-    function renderActorIcon(cx, cy, strokeColor) {
+    function renderActorIcon(cx: number, cy: number, strokeColor: string) {
       return h('g', { stroke: strokeColor, strokeWidth: 1.6, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' },
         h('circle', { cx, cy: cy - 11, r: 5.5, fill: 'color-mix(in srgb, var(--dsw-alias-link) 8%, var(--dsw-alias-bg-layer-1))' }),
         h('line', { x1: cx, y1: cy - 5.5, x2: cx, y2: cy + 5 }),
@@ -454,7 +474,7 @@ declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLay
 
     // ==================== Layered Graph SVG Renderer (Flowchart / Class / State / ER / Component) ====================
 
-    function renderGraphSvg(diagram, markerBase) {
+    function renderGraphSvg(diagram: GraphLayout, markerBase: string) {
       const mIds = {
         arrowEnd: markerBase + '-end',
         arrowStart: markerBase + '-start',
@@ -553,7 +573,7 @@ declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLay
       )
     }
 
-    function renderSubgraph(sg) {
+    function renderSubgraph(sg: GraphSubgraph) {
       return h('g', { key: 'sg:' + sg.id },
         h('rect', {
           x: sg.x,
@@ -576,7 +596,7 @@ declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLay
       )
     }
 
-    function resolveMarkerUrl(kind, isStart, mIds) {
+    function resolveMarkerUrl(kind: string, isStart: boolean, mIds: MarkerIds) {
       if (kind === 'hollow_triangle') return 'url(#' + (isStart ? mIds.hollowTriStart : mIds.hollowTriEnd) + ')'
       if (kind === 'filled_diamond') return 'url(#' + (isStart ? mIds.filledDiaStart : mIds.filledDiaEnd) + ')'
       if (kind === 'hollow_diamond') return 'url(#' + (isStart ? mIds.hollowDiaStart : mIds.hollowDiaEnd) + ')'
@@ -584,7 +604,7 @@ declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLay
       return undefined
     }
 
-    function renderEdge(edge, mIds, key) {
+    function renderEdge(edge: GraphEdge, mIds: MarkerIds, key: number) {
       const strokeWidth = edge.style === 'thick' ? 2.5 : 1.5
       const pathProps: Record<string, unknown> = {
         key: 'line',
@@ -640,7 +660,7 @@ declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLay
       return h('g', { key: 'edge:' + key }, children)
     }
 
-    function renderNode(node) {
+    function renderNode(node: GraphNode) {
       const w = node.width
       const ht = node.height
       const x = node.x - w / 2
@@ -797,8 +817,8 @@ declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLay
       )
     }
 
-    function renderUmlClassNode(node, x, y, w, ht) {
-      const s = node.sections
+    function renderUmlClassNode(node: GraphNode, x: number, y: number, w: number, ht: number) {
+      const s = node.sections!
       const headerH = s.stereotype ? 44 : 30
       const attrs = s.attrs ?? []
       const methods = s.methods ?? []
@@ -908,7 +928,7 @@ declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLay
 
     return {
       inject: ['slots', 'locale'],
-      apply(ctx) {
+      apply(ctx: DshContext) {
         ctx.effect(() => ctx.locale.register(FLOWCHART_NS, { zh: flowchartZh, en: flowchartEn }), 'markdown-flowchart: dictionaries')
         for (const key of FLOWCHART_LANGUAGES) {
           ctx.slots.inject('conversation.chat.markdown.fence', () => ctx.slots.register({

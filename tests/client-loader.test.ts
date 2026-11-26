@@ -3,38 +3,47 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import vm from 'node:vm'
 
-const clientPath = new URL('../client.js', import.meta.url)
+type RenderProps = { lang: string; code: string; streaming: boolean; children: unknown; t: (key: string) => string }
+type Renderer = (props: RenderProps) => unknown
+type LoaderModule = { factory: (requireModule: (name: string) => unknown) => { inject: string[]; apply: (ctx: unknown) => void } }
+type TestElement = { type: string; props: Record<string, unknown>; children: unknown[] }
+
+function isElement(value: unknown): value is TestElement {
+  return typeof value === 'object' && value !== null && 'type' in value && 'props' in value && 'children' in value
+}
+
+const clientPath = new URL('../dist/client.js', import.meta.url)
 
 test('registers flowchart, mermaid, and plantuml fence languages through the DSH slot', async () => {
   const source = await readFile(clientPath, 'utf8')
-  let loaded
-  const window = { __ModuleLoader__: { load(module) { loaded = module } } }
+  let loaded: LoaderModule | undefined
+  const window = { __ModuleLoader__: { load(module: LoaderModule) { loaded = module } } }
   vm.runInNewContext(source, { window })
-  assert.ok(loaded)
-  const registrations = []
+  const loadedModule = loaded as LoaderModule | undefined
+  assert.ok(loadedModule)
+  const registrations: Array<{ options: { key: string }; component: Renderer }> = []
   const React = {
-    createElement(type, props, ...children) { return { type, props: props ?? {}, children } },
+    createElement(type: string, props: Record<string, unknown> | null, ...children: unknown[]) { return { type, props: props ?? {}, children } },
     useId() { return 'test-id' },
-    useMemo(factory) { return factory() },
+    useMemo<T>(factory: () => T) { return factory() },
   }
-  const module = loaded
-  const plugin = module.factory(name => {
+  const plugin = loadedModule.factory(name => {
     assert.equal(name, 'react')
     return React
   })
   assert.deepEqual(Array.from(plugin.inject), ['slots', 'locale'])
   plugin.apply({
-    effect(run) { run() },
-    locale: { register(namespace, dictionaries) {
+    effect(run: () => unknown) { run() },
+    locale: { register(namespace: string, dictionaries: Record<string, unknown>) {
       assert.equal(namespace, 'markdownFlowchart')
       assert.deepEqual(Object.keys(dictionaries), ['zh', 'en'])
     } },
     slots: {
-      inject(name, register) {
+      inject(name: string, register: () => unknown) {
         assert.equal(name, 'conversation.chat.markdown.fence')
         register()
       },
-      register(options, component) {
+      register(options: { key: string }, component: Renderer) {
         registrations.push({ options, component })
         return () => {}
       },
@@ -57,11 +66,14 @@ test('registers flowchart, mermaid, and plantuml fence languages through the DSH
     children: child,
     t: key => key,
   })
+  assert.ok(isElement(renderedFlow))
   assert.equal(renderedFlow.type, 'div')
   assert.equal(renderedFlow.props['data-dsh-flowchart'], 'flowchart')
   assert.equal(renderedFlow.props['data-dsh-diagram-kind'], 'flowchart')
   assert.equal(renderedFlow.props['aria-label'], 'diagram.flowchart')
-  assert.equal(renderedFlow.children[0].type, 'svg')
+  const svg = renderedFlow.children[0]
+  assert.ok(isElement(svg))
+  assert.equal(svg.type, 'svg')
 
   const renderedSeq = render({
     lang: 'mermaid',
@@ -70,6 +82,7 @@ test('registers flowchart, mermaid, and plantuml fence languages through the DSH
     children: child,
     t: key => key,
   })
+  assert.ok(isElement(renderedSeq))
   assert.equal(renderedSeq.type, 'div')
   assert.equal(renderedSeq.props['data-dsh-diagram-kind'], 'sequence')
   assert.equal(renderedSeq.props['aria-label'], 'diagram.sequence')
@@ -81,6 +94,7 @@ test('registers flowchart, mermaid, and plantuml fence languages through the DSH
     children: child,
     t: key => key,
   })
+  assert.ok(isElement(renderedPlantClass))
   assert.equal(renderedPlantClass.type, 'div')
   assert.equal(renderedPlantClass.props['data-dsh-diagram-kind'], 'flowchart')
   assert.equal(renderedPlantClass.props['aria-label'], 'diagram.plantuml')

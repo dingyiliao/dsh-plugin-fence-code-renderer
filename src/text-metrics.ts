@@ -38,7 +38,7 @@ function wrapLabel(value: string, maxLineWidth = 156, fontSize = 13): string[] {
     .replace(/<br\s*\/?>/giu, '\n')
     .replace(/\\n/gu, '\n')
   const paragraphs = raw.split('\n')
-  const lines = []
+  const lines: string[] = []
 
   for (const para of paragraphs) {
     const text = para.replace(/\s+/gu, ' ').trim()

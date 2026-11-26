@@ -1,5 +1,23 @@
 import { clamp, measureTextWidth, wrapLabel } from './text-metrics.ts'
 
+type Participant = { id: string; label: string; kind: string }
+type SequenceEvent =
+  | { type: 'message'; from: string; to: string; dashed: boolean; arrowKind: string; bidirectional: boolean; activateTarget: boolean; deactivateSource: boolean; label: string }
+  | { type: 'note'; placement: string; targets: string[]; text: string }
+  | { type: 'activate' | 'deactivate'; target: string }
+  | { type: 'divider'; text: string }
+  | { type: 'block_start' | 'block_else'; kind: string; label: string }
+  | { type: 'block_end' }
+
+type PositionedParticipant = Participant & { index: number; lines: string[]; width: number; height: number; x: number; y: number }
+type PositionedEvent =
+  | { type: 'divider'; y: number; text: string }
+  | { type: 'note'; x: number; y: number; width: number; height: number; lines: string[] }
+  | { type: 'message'; isSelf: boolean; x1: number; x2: number; y: number; yEnd: number; dashed: boolean; arrowKind: string; bidirectional: boolean; lines: string[]; labelW: number }
+type FragmentSection = { y: number; label: string }
+type OpenFragment = { kind: string; label: string; startY: number; depth: number; minIdx: number; maxIdx: number; sections: FragmentSection[] }
+type Fragment = { kind: string; label: string; x: number; y: number; width: number; height: number; sections: FragmentSection[] }
+
 const MAX_SEQ_PARTICIPANTS = 24
 const MAX_SEQ_EVENTS = 160
 
@@ -12,20 +30,20 @@ function parseSequenceDiagram(source: string) {
   if (typeof source !== 'string' || source.length > 20_000) return null
   const rawLines = source.replace(/\r/g, '').replace(/%%\{[\s\S]*?\}%%/gu, '').split('\n')
 
-  const participants = []
-  const byId = new Map()
-  const events = []
-  const blockStack = []
+  const participants: Participant[] = []
+  const byId = new Map<string, Participant>()
+  const events: SequenceEvent[] = []
+  const blockStack: string[] = []
   let title = ''
   let autonumber = false
   let msgCounter = 0
   let hideFootbox = false
   let inSkinparamBlock = false
-  let inMultiNote = null
+  let inMultiNote: { placement: string; targets: string[]; lines: string[] } | null = null
   let hasExplicitParticipant = false
   let messageCount = 0
 
-  const ensureParticipant = (rawId, explicitKind = '', explicitLabel = '') => {
+  const ensureParticipant = (rawId: string, explicitKind = '', explicitLabel = '') => {
     const id = String(rawId ?? '').trim().replace(/^["']|["']$/g, '')
     if (!id || !/^[A-Za-z0-9_][\w.-]*$/u.test(id)) return null
     let p = byId.get(id)
@@ -123,7 +141,7 @@ function parseSequenceDiagram(source: string) {
     if (noteMatch !== null) {
       const placement = noteMatch[1].toLowerCase().replace(/\s+/g, ' ')
       const targetIds = noteMatch[2].split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean)
-      const targets = targetIds.map(id => ensureParticipant(id)).filter(Boolean).map(p => p.id)
+      const targets = targetIds.map(id => ensureParticipant(id)).filter((p): p is Participant => p !== null).map(p => p.id)
       if (targets.length === 0) continue
       if (noteMatch[3] !== undefined) {
         if (events.length >= MAX_SEQ_EVENTS) return null
@@ -201,7 +219,7 @@ function parseSequenceDiagram(source: string) {
   return { kind: 'sequence', title, hideFootbox, participants, events }
 }
 
-function stripSeqComment(line) {
+function stripSeqComment(line: string) {
   if (line.trim().startsWith('%%') || line.trim().startsWith("'")) return ''
   let quote = ''
   for (let i = 0; i < line.length; i += 1) {
@@ -217,7 +235,7 @@ function stripSeqComment(line) {
   return line
 }
 
-function parseParticipantDecl(raw) {
+function parseParticipantDecl(raw: string) {
   const s = raw.trim()
   // "Label" as Id
   const qAs = /^"([^"]+)"\s+as\s+([A-Za-z0-9_][\w.-]*)$/iu.exec(s)
@@ -237,7 +255,7 @@ function parseParticipantDecl(raw) {
   return null
 }
 
-function parseSequenceMessage(line) {
+function parseSequenceMessage(line: string) {
   // Normalize optional color tags inside PlantUML arrows e.g. -[#red]> -> ->
   const normalized = line.replace(/(<)?(-+)\[[^\]]+\](-+>?)/gu, '$1$2$3')
   const idPat = '"[^"]+"|[A-Za-z0-9_][\\w.]*(?:-[A-Za-z0-9_][\\w.]*)*'
@@ -277,7 +295,7 @@ function parseSequenceMessage(line) {
   }
 }
 
-function cleanSeqText(value) {
+function cleanSeqText(value: string) {
   const s = String(value ?? '').trim()
   if (s.length >= 2 && ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'")))) {
     return s.slice(1, -1)
@@ -296,14 +314,14 @@ function layoutSequenceDiagram(seq: ReturnType<typeof parseSequenceDiagram>) {
   const indexById = new Map<string, number>(participants.map((p, i) => [p.id, i]))
 
   // 1. Measure participant header boxes
-  const pMeta = participants.map((p, idx) => {
+  const pMeta: PositionedParticipant[] = participants.map((p, idx) => {
     const lines = wrapLabel(p.label, 140, 13)
     const textW = Math.max(...lines.map(l => measureTextWidth(l, 13)))
     const isActor = p.kind === 'actor'
     const isDb = p.kind === 'database'
     const width = clamp(textW + 32, isActor ? 76 : 92, 184)
     const height = isActor ? 44 + lines.length * 17 : Math.max(40, lines.length * 18 + (isDb ? 26 : 20))
-    return { ...p, index: idx, lines, width, height }
+    return { ...p, index: idx, lines, width, height, x: 0, y: 0 }
   })
 
   // 2. Measure minimum adjacent column gaps based on boxes, direct messages, self-loops, and notes
@@ -369,31 +387,33 @@ function layoutSequenceDiagram(seq: ReturnType<typeof parseSequenceDiagram>) {
   let yCursor = headerBottomY + 26
 
   // 3. Layout vertical events, activations, and combined fragments
-  const positionedEvents = []
+  const positionedEvents: PositionedEvent[] = []
   const activeStacks = new Map<string, Array<{ startY: number; depth: number }>>(pMeta.map(p => [p.id, []]))
-  const activations = []
-  const fragmentStack = []
-  const fragments = []
+  const activations: Array<{ participantId: string; x: number; startY: number; endY: number }> = []
+  const fragmentStack: OpenFragment[] = []
+  const fragments: Fragment[] = []
 
-  const openActivation = (id, y) => {
+  const openActivation = (id: string, y: number) => {
     const stack = activeStacks.get(id)
     if (!stack) return
     stack.push({ startY: y, depth: stack.length })
   }
 
-  const closeActivation = (id, y) => {
+  const closeActivation = (id: string, y: number) => {
     const stack = activeStacks.get(id)
     if (!stack || stack.length === 0) return
     const item = stack.pop()
+    const index = indexById.get(id)
+    if (!item || index === undefined) return
     activations.push({
       participantId: id,
-      x: pMeta[indexById.get(id)].x + item.depth * 5,
+      x: pMeta[index].x + item.depth * 5,
       startY: item.startY,
       endY: Math.max(item.startY + 14, y),
     })
   }
 
-  const touchFragmentParticipant = (id) => {
+  const touchFragmentParticipant = (id: string) => {
     const idx = indexById.get(id)
     if (idx === undefined) return
     for (const frag of fragmentStack) {
@@ -466,8 +486,11 @@ function layoutSequenceDiagram(seq: ReturnType<typeof parseSequenceDiagram>) {
       const textW = Math.max(52, ...lines.map(l => measureTextWidth(l, 12)))
       const noteW = textW + 22
       const noteH = lines.length * 16 + 16
-      const firstX = pMeta[indexById.get(ev.targets[0])].x
-      const lastX = pMeta[indexById.get(ev.targets[ev.targets.length - 1])].x
+      const firstIndex = indexById.get(ev.targets[0])
+      const lastIndex = indexById.get(ev.targets[ev.targets.length - 1])
+      if (firstIndex === undefined || lastIndex === undefined) continue
+      const firstX = pMeta[firstIndex].x
+      const lastX = pMeta[lastIndex].x
       let nx
       if (ev.placement === 'left of') nx = firstX - noteW - 14
       else if (ev.placement === 'right of') nx = firstX + 14
@@ -486,8 +509,11 @@ function layoutSequenceDiagram(seq: ReturnType<typeof parseSequenceDiagram>) {
     if (ev.type === 'message') {
       touchFragmentParticipant(ev.from)
       touchFragmentParticipant(ev.to)
-      const x1 = pMeta[indexById.get(ev.from)].x
-      const x2 = pMeta[indexById.get(ev.to)].x
+      const fromIndex = indexById.get(ev.from)
+      const toIndex = indexById.get(ev.to)
+      if (fromIndex === undefined || toIndex === undefined) continue
+      const x1 = pMeta[fromIndex].x
+      const x2 = pMeta[toIndex].x
       const isSelf = ev.from === ev.to
       const lines = ev.label ? wrapLabel(ev.label, isSelf ? 180 : Math.max(120, Math.abs(x2 - x1) - 24), 12) : []
       const labelW = lines.length > 0 ? Math.max(...lines.map(l => measureTextWidth(l, 12))) + 10 : 0
@@ -537,6 +563,7 @@ function layoutSequenceDiagram(seq: ReturnType<typeof parseSequenceDiagram>) {
   // Close any unclosed fragments or activations cleanly
   while (fragmentStack.length > 0) {
     const frag = fragmentStack.pop()
+    if (!frag) break
     if (frag.minIdx > frag.maxIdx) {
       frag.minIdx = 0
       frag.maxIdx = pMeta.length - 1

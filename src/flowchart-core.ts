@@ -28,6 +28,19 @@ export type ParsedGraph = {
   }>
   subgraphs?: Array<{ id: string; title: string; parentId: string | null }>
 }
+type GraphNode = ParsedGraph['nodes'][number]
+type GraphEdge = ParsedGraph['edges'][number]
+type GraphSubgraph = NonNullable<ParsedGraph['subgraphs']>[number]
+type ParsedNode = { id: string; label: string; shape: string; explicitShape: boolean }
+type EnsureNode = (parsed: ParsedNode | null) => GraphNode | null
+type LayoutNode = GraphNode & {
+  width: number; height: number; lines: string[]; isDummy: boolean; rank: number
+  main: number; cross: number; mainSize: number; crossSize: number
+}
+type Point = { main: number; cross: number }
+type PathSegment = { type: string; pts: Point[] }
+type EdgeGeometry = { segments: PathSegment[]; labelMain: number; labelCross: number; extents: Point[] }
+type SubgraphBox = { id: string; title: string; mainMin: number; mainMax: number; crossMin: number; crossMax: number }
 
 const MAX_SOURCE_LENGTH = 20_000
 const MAX_NODES = 80
@@ -68,11 +81,11 @@ function parseFlowchart(source: string): ParsedGraph | null {
     break
   }
 
-  const nodes = []
-  const byId = new Map()
-  const edges = []
-  const subgraphs = []
-  const subgraphStack = []
+  const nodes: GraphNode[] = []
+  const byId = new Map<string, GraphNode>()
+  const edges: GraphEdge[] = []
+  const subgraphs: GraphSubgraph[] = []
+  const subgraphStack: string[] = []
   let hasHeader = false
   let hasExplicitShape = false
   let direction = 'TD'
@@ -80,7 +93,7 @@ function parseFlowchart(source: string): ParsedGraph | null {
 
   const currentSubgraphId = () => (subgraphStack.length > 0 ? subgraphStack[subgraphStack.length - 1] : null)
 
-  const ensureNode = (parsed) => {
+  const ensureNode: EnsureNode = (parsed) => {
     if (parsed === null) return null
     if (parsed.explicitShape) hasExplicitShape = true
     let node = byId.get(parsed.id)
@@ -153,7 +166,7 @@ function parseFlowchart(source: string): ParsedGraph | null {
   return { direction, nodes: resolved.nodes, edges: resolved.edges, subgraphs }
 }
 
-function resolveSubgraphNodeAliases(nodes, edges, subgraphs) {
+function resolveSubgraphNodeAliases(nodes: GraphNode[], edges: GraphEdge[], subgraphs: GraphSubgraph[]) {
   if (subgraphs.length === 0) return { nodes, edges }
   let curNodes = nodes.slice()
   let curEdges = edges.slice()
@@ -178,7 +191,7 @@ function resolveSubgraphNodeAliases(nodes, edges, subgraphs) {
     const entryTargets = entries.length > 0 ? entries : [members[0]]
     const exitSources = exits.length > 0 ? exits : [members[members.length - 1]]
 
-    const nextEdges = []
+    const nextEdges: GraphEdge[] = []
     for (const edge of curEdges) {
       const fromList = edge.from === sg.id ? exitSources.map(n => n.id) : [edge.from]
       const toList = edge.to === sg.id ? entryTargets.map(n => n.id) : [edge.to]
@@ -197,12 +210,12 @@ function resolveSubgraphNodeAliases(nodes, edges, subgraphs) {
   return { nodes: curNodes, edges: curEdges }
 }
 
-function normalizeDirection(value) {
+function normalizeDirection(value: string | undefined) {
   const upper = String(value ?? '').toUpperCase()
   return upper === 'LR' || upper === 'RL' || upper === 'BT' ? upper : 'TD'
 }
 
-function parseSubgraphHeader(raw, index, parentId) {
+function parseSubgraphHeader(raw: string, index: number, parentId: string | null): GraphSubgraph {
   const trimmed = raw.trim()
   const bracketed = /^([A-Za-z0-9_][\w-]*)\s*\[([\s\S]+)\]$/u.exec(trimmed)
   if (bracketed !== null) {
@@ -214,7 +227,7 @@ function parseSubgraphHeader(raw, index, parentId) {
 /**
  * Strip %% comments outside quotes and bracketed labels.
  */
-function stripLineComment(line) {
+function stripLineComment(line: string) {
   let quote = ''
   let depth = 0
   for (let i = 0; i < line.length; i += 1) {
@@ -237,8 +250,8 @@ function stripLineComment(line) {
 /**
  * Split a line on ';' only when outside quotes and node brackets.
  */
-function splitStatements(line) {
-  const result = []
+function splitStatements(line: string) {
+  const result: string[] = []
   let quote = ''
   let depth = 0
   let start = 0
@@ -266,7 +279,7 @@ function splitStatements(line) {
 /**
  * Parse a single statement possibly containing '&' groups and chained edges.
  */
-function parseStatement(statement, ensureNode) {
+function parseStatement(statement: string, ensureNode: EnsureNode) {
   let pos = skipSpaces(statement, 0)
   if (pos >= statement.length) return []
 
@@ -276,7 +289,7 @@ function parseStatement(statement, ensureNode) {
   pos = skipSpaces(statement, firstGroup.nextPos)
   if (pos >= statement.length) return []
 
-  const result = []
+  const result: GraphEdge[] = []
   let fromNodes = firstGroup.nodes
 
   while (pos < statement.length) {
@@ -305,13 +318,13 @@ function parseStatement(statement, ensureNode) {
   return result
 }
 
-function skipSpaces(str, pos) {
+function skipSpaces(str: string, pos: number) {
   while (pos < str.length && (str[pos] === ' ' || str[pos] === '\t')) pos += 1
   return pos
 }
 
-function readNodeGroup(str, startPos, ensureNode) {
-  const nodes = []
+function readNodeGroup(str: string, startPos: number, ensureNode: EnsureNode) {
+  const nodes: GraphNode[] = []
   let pos = startPos
   while (pos < str.length) {
     pos = skipSpaces(str, pos)
@@ -333,7 +346,7 @@ function readNodeGroup(str, startPos, ensureNode) {
 /**
  * Read a node identifier and optional shape brackets at str[pos].
  */
-function readNodeTokenAt(str, pos) {
+function readNodeTokenAt(str: string, pos: number) {
   const slice = str.slice(pos)
   const idMatch = /^([A-Za-z0-9_][\w-]*)/u.exec(slice)
   if (idMatch === null) return null
@@ -377,12 +390,12 @@ function readNodeTokenAt(str, pos) {
   }
 }
 
-function skipClassSuffix(str, pos) {
+function skipClassSuffix(str: string, pos: number) {
   const match = /^:::[A-Za-z0-9_-]+/u.exec(str.slice(pos))
   return match !== null ? pos + match[0].length : pos
 }
 
-function scanShapeEnd(str, start) {
+function scanShapeEnd(str: string, start: number) {
   const open = str[start]
   const expectedTopClose = open === '(' ? ')' : open === '{' ? '}' : ']'
   let quote = ''
@@ -411,7 +424,7 @@ function scanShapeEnd(str, start) {
   return -1
 }
 
-function decodeNodeShape(raw) {
+function decodeNodeShape(raw: string) {
   for (const def of SHAPE_DEFS) {
     if (raw.startsWith(def.open) && raw.endsWith(def.close) && raw.length >= def.open.length + def.close.length) {
       return {
@@ -423,7 +436,7 @@ function decodeNodeShape(raw) {
   return { shape: 'rect', label: cleanLabel(raw) }
 }
 
-function cleanLabel(value) {
+function cleanLabel(value: string) {
   const text = String(value ?? '').trim()
   if (text.length >= 2 && ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'")))) {
     return text.slice(1, -1) || ' '
@@ -434,7 +447,7 @@ function cleanLabel(value) {
 /**
  * Match a Mermaid edge operator (with optional inline or pipe label) at str[pos].
  */
-function matchEdgeOperator(str, pos) {
+function matchEdgeOperator(str: string, pos: number) {
   const slice = str.slice(pos)
   const patterns = [
     // Bidirectional arrows
@@ -500,7 +513,7 @@ function layoutFlowchart(graph: ParsedGraph | null) {
   const baseRankGap = horizontal ? 60 : 52
 
   // 1. Measure every real node
-  const nodeMeta = new Map()
+  const nodeMeta = new Map<string, LayoutNode>()
   for (const node of graph.nodes) {
     const dim = computeNodeDimensions(node)
     nodeMeta.set(node.id, {
@@ -508,6 +521,11 @@ function layoutFlowchart(graph: ParsedGraph | null) {
       subgraphId: node.subgraphId ?? null,
       ...dim,
       isDummy: false,
+      rank: 0,
+      main: 0,
+      cross: 0,
+      mainSize: 0,
+      crossSize: 0,
     })
   }
 
@@ -515,28 +533,32 @@ function layoutFlowchart(graph: ParsedGraph | null) {
   const { isBackEdge, ranks } = assignRanks(graph.nodes, graph.edges)
 
   // 3. Build rank layers + insert dummy waypoints for skip-level DAG edges
-  const layers = new Map<number, any[]>()
-  const ensureLayer = (r) => {
-    if (!layers.has(r)) layers.set(r, [])
-    return layers.get(r)
+  const layers = new Map<number, LayoutNode[]>()
+  const ensureLayer = (r: number) => {
+    let layer = layers.get(r)
+    if (layer === undefined) {
+      layer = []
+      layers.set(r, layer)
+    }
+    return layer
   }
   for (const node of graph.nodes) {
     const r = ranks.get(node.id) ?? 0
-    const meta = nodeMeta.get(node.id)
+    const meta = nodeMeta.get(node.id)!
     meta.rank = r
     ensureLayer(r).push(meta)
   }
 
   const dagAdjOut = new Map<string, string[]>()
   const dagAdjIn = new Map<string, string[]>()
-  const addDagLink = (uId, vId) => {
+  const addDagLink = (uId: string, vId: string) => {
     if (!dagAdjOut.has(uId)) dagAdjOut.set(uId, [])
     if (!dagAdjIn.has(vId)) dagAdjIn.set(vId, [])
-    dagAdjOut.get(uId).push(vId)
-    dagAdjIn.get(vId).push(uId)
+    dagAdjOut.get(uId)!.push(vId)
+    dagAdjIn.get(vId)!.push(uId)
   }
 
-  const edgeRoutingChain = new Map()
+  const edgeRoutingChain = new Map<number, string[]>()
   let dummyCounter = 0
 
   graph.edges.forEach((edge, edgeIndex) => {
@@ -549,12 +571,18 @@ function layoutFlowchart(graph: ParsedGraph | null) {
       const dummyId = '__dummy_' + dummyCounter
       const dummyNode = {
         id: dummyId,
+        label: '',
+        shape: 'rect',
         isDummy: true,
         rank: r,
         width: horizontal ? 12 : 20,
         height: horizontal ? 20 : 12,
         lines: [],
         subgraphId: null,
+        main: 0,
+        cross: 0,
+        mainSize: 0,
+        crossSize: 0,
       }
       nodeMeta.set(dummyId, dummyNode)
       ensureLayer(r).push(dummyNode)
@@ -604,7 +632,7 @@ function layoutFlowchart(graph: ParsedGraph | null) {
     for (const node of graph.nodes) {
       if (!node.subgraphId) continue
       const r = ranks.get(node.id) ?? 0
-      if (!sgMinRank.has(node.subgraphId) || r < sgMinRank.get(node.subgraphId)) {
+      if (r < (sgMinRank.get(node.subgraphId) ?? Infinity)) {
         sgMinRank.set(node.subgraphId, r)
       }
     }
@@ -616,8 +644,8 @@ function layoutFlowchart(graph: ParsedGraph | null) {
   }
 
   // 6. Position nodes along main axis and cross axis
-  const rankMainSize = new Map()
-  const rankCrossSpan = new Map()
+  const rankMainSize = new Map<number, number>()
+  const rankCrossSpan = new Map<number, number>()
   for (let r = 0; r <= maxRank; r += 1) {
     const group = layers.get(r) ?? []
     let maxM = 0
@@ -712,7 +740,7 @@ function layoutFlowchart(graph: ParsedGraph | null) {
   const width = horizontal ? totalMain : totalCross
   const height = horizontal ? totalCross : totalMain
 
-  const toXY = (m, c) => {
+  const toXY = (m: number, c: number) => {
     const sm = m + shiftMain
     const sc = c + shiftCross
     const finalM = flipMain ? totalMain - sm : sm
@@ -721,13 +749,13 @@ function layoutFlowchart(graph: ParsedGraph | null) {
 
   // 9. Finalize positioned nodes, edges, and subgraphs
   const positionedNodes = graph.nodes.map(node => {
-    const meta = nodeMeta.get(node.id)
+    const meta = nodeMeta.get(node.id)!
     const pt = toXY(meta.main, meta.cross)
-    const item: { id: string; label: string; shape: string; subgraphId: string | null; x: number; y: number; width: number; height: number; lines: string[]; sections?: { stereotype?: string } } = {
+    const item: { id: string; label: string; shape: string; subgraphId: string | null; x: number; y: number; width: number; height: number; lines: string[]; sections?: GraphNode['sections'] } = {
       id: meta.id,
       label: meta.label,
       shape: meta.shape,
-      subgraphId: meta.subgraphId,
+      subgraphId: meta.subgraphId ?? null,
       x: pt.x,
       y: pt.y,
       width: meta.width,
@@ -795,7 +823,7 @@ function layoutFlowchart(graph: ParsedGraph | null) {
   }
 }
 
-function computeNodeDimensions(node) {
+function computeNodeDimensions(node: GraphNode) {
   if (node.shape === 'state_start' || node.shape === 'state_end') {
     return { width: 28, height: 28, lines: [] }
   }
@@ -809,14 +837,14 @@ function computeNodeDimensions(node) {
       s.title,
       ...(s.attrs ?? []),
       ...(s.methods ?? []),
-    ].filter(Boolean)
+    ].filter((line): line is string => Boolean(line))
     const maxW = Math.max(80, ...allLines.map(l => measureTextWidth(l, 12)))
     const width = clamp(maxW + 28, 116, 300)
     const headerH = s.stereotype ? 44 : 30
-    const attrsH = (s.attrs?.length ?? 0) > 0 ? s.attrs.length * 18 + 12 : 0
-    const methodsH = (s.methods?.length ?? 0) > 0 ? s.methods.length * 18 + 12 : 0
+    const attrsH = (s.attrs?.length ?? 0) > 0 ? (s.attrs?.length ?? 0) * 18 + 12 : 0
+    const methodsH = (s.methods?.length ?? 0) > 0 ? (s.methods?.length ?? 0) * 18 + 12 : 0
     const height = Math.max(40, headerH + attrsH + methodsH)
-    return { width, height, lines: [s.title] }
+    return { width, height, lines: [s.title ?? node.label] }
   }
   if (node.shape === 'actor') {
     const lines = wrapLabel(node.label, 140, 13)
@@ -886,7 +914,7 @@ function computeNodeDimensions(node) {
   return { width, height, lines }
 }
 
-function measureEdgeLabel(label) {
+function measureEdgeLabel(label: string) {
   const lines = wrapLabel(label, 140, 12)
   const textWidth = Math.max(...lines.map(l => measureTextWidth(l, 12)))
   return {
@@ -899,7 +927,7 @@ function measureEdgeLabel(label) {
 /**
  * Detect cycle back-edges via DFS and assign longest-path ranks on the resulting DAG.
  */
-function assignRanks(nodes, edges) {
+function assignRanks(nodes: GraphNode[], edges: GraphEdge[]) {
   const outgoing = new Map<string, Array<{ to: string; index: number }>>(nodes.map(n => [n.id, []]))
   const inCount = new Map<string, number>(nodes.map(n => [n.id, 0]))
   edges.forEach((edge, index) => {
@@ -910,7 +938,7 @@ function assignRanks(nodes, edges) {
   const state = new Map<string, number>() // 0 = unvisited, 1 = visiting, 2 = visited
   const isBackEdge = edges.map(() => false)
 
-  const dfs = (u) => {
+  const dfs = (u: string) => {
     state.set(u, 1)
     for (const item of outgoing.get(u) ?? []) {
       if (item.to === u) {
@@ -946,10 +974,10 @@ function assignRanks(nodes, edges) {
 
   const ranks = new Map<string, number>(nodes.map(n => [n.id, 0]))
   const queue = nodes.filter(n => (dagIn.get(n.id) ?? 0) === 0).map(n => n.id)
-  const topoOrder = []
+  const topoOrder: string[] = []
 
   while (queue.length > 0) {
-    const u = queue.shift()
+    const u = queue.shift()!
     topoOrder.push(u)
     const rU = ranks.get(u) ?? 0
     for (const v of dagOut.get(u) ?? []) {
@@ -981,7 +1009,7 @@ function assignRanks(nodes, edges) {
   return { isBackEdge, ranks }
 }
 
-function sortLayerByBarycenter(layer, neighborLayer, adj) {
+function sortLayerByBarycenter(layer: LayoutNode[], neighborLayer: LayoutNode[], adj: Map<string, string[]>) {
   if (layer.length <= 1 || neighborLayer.length === 0) return
   const neighborPos = new Map<string, number>()
   neighborLayer.forEach((node, idx) => neighborPos.set(node.id, idx))
@@ -992,7 +1020,7 @@ function sortLayerByBarycenter(layer, neighborLayer, adj) {
     if (neighbors.length === 0) {
       scores.set(node.id, idx)
     } else {
-      const avg = neighbors.reduce((sum, id) => sum + neighborPos.get(id), 0) / neighbors.length
+      const avg = neighbors.reduce((sum, id) => sum + (neighborPos.get(id) ?? 0), 0) / neighbors.length
       scores.set(node.id, avg)
     }
   })
@@ -1004,8 +1032,8 @@ function sortLayerByBarycenter(layer, neighborLayer, adj) {
   })
 }
 
-function alignCrossPositions(layers, maxRank, dagAdjIn, dagAdjOut, crossGap) {
-  const byId = new Map()
+function alignCrossPositions(layers: Map<number, LayoutNode[]>, maxRank: number, dagAdjIn: Map<string, string[]>, dagAdjOut: Map<string, string[]>, crossGap: number) {
+  const byId = new Map<string, LayoutNode>()
   for (let r = 0; r <= maxRank; r += 1) {
     for (const node of layers.get(r) ?? []) byId.set(node.id, node)
   }
@@ -1020,11 +1048,11 @@ function alignCrossPositions(layers, maxRank, dagAdjIn, dagAdjOut, crossGap) {
   }
 }
 
-function nudgeLayerToward(layer, adj, byId, crossGap) {
+function nudgeLayerToward(layer: LayoutNode[], adj: Map<string, string[]>, byId: Map<string, LayoutNode>, crossGap: number) {
   if (layer.length === 0) return
   for (let i = 0; i < layer.length; i += 1) {
     const node = layer[i]
-    const neighbors = (adj.get(node.id) ?? []).map(id => byId.get(id)).filter(Boolean)
+    const neighbors = (adj.get(node.id) ?? []).map(id => byId.get(id)).filter((value): value is LayoutNode => value !== undefined)
     if (neighbors.length === 0) continue
     const target = neighbors.reduce((sum, n) => sum + n.cross, 0) / neighbors.length
     const prev = i > 0 ? layer[i - 1] : null
@@ -1038,7 +1066,7 @@ function nudgeLayerToward(layer, adj, byId, crossGap) {
 /**
  * Compute shape boundary offset along main axis given a cross-axis port offset.
  */
-function shapeMainReach(node, crossOffset, horizontal, isEntry) {
+function shapeMainReach(node: LayoutNode, crossOffset: number, horizontal: boolean, isEntry: boolean) {
   const hm = node.mainSize / 2
   const hc = node.crossSize / 2
   const ratio = Math.min(0.95, Math.abs(crossOffset) / Math.max(1, hc))
@@ -1057,21 +1085,21 @@ function shapeMainReach(node, crossOffset, horizontal, isEntry) {
   return hm
 }
 
-function routeAllEdges(edges, nodeMeta, isBackEdge, edgeRoutingChain, minCross, maxCross, horizontal, flipMain) {
+function routeAllEdges(edges: GraphEdge[], nodeMeta: Map<string, LayoutNode>, isBackEdge: boolean[], edgeRoutingChain: Map<number, string[]>, minCross: number, maxCross: number, horizontal: boolean, flipMain: boolean): EdgeGeometry[] {
   // Group forward edges by exit and entry node to distribute ports evenly
-  const outEdgesByNode = new Map()
-  const inEdgesByNode = new Map()
-  const pairGroups = new Map()
+  const outEdgesByNode = new Map<string, number[]>()
+  const inEdgesByNode = new Map<string, number[]>()
+  const pairGroups = new Map<string, number[]>()
 
   edges.forEach((edge, index) => {
     if (isBackEdge[index]) return
     if (!outEdgesByNode.has(edge.from)) outEdgesByNode.set(edge.from, [])
     if (!inEdgesByNode.has(edge.to)) inEdgesByNode.set(edge.to, [])
-    outEdgesByNode.get(edge.from).push(index)
-    inEdgesByNode.get(edge.to).push(index)
+    outEdgesByNode.get(edge.from)!.push(index)
+    inEdgesByNode.get(edge.to)!.push(index)
     const pk = edge.from + '->' + edge.to
     if (!pairGroups.has(pk)) pairGroups.set(pk, [])
-    pairGroups.get(pk).push(index)
+    pairGroups.get(pk)!.push(index)
   })
 
   // Sort outgoing/incoming edges by target/source cross position so ports don't cross immediately
@@ -1085,11 +1113,11 @@ function routeAllEdges(edges, nodeMeta, isBackEdge, edgeRoutingChain, minCross, 
   const graphCenterCross = (minCross + maxCross) / 2
   let rightChannelIdx = 0
   let leftChannelIdx = 0
-  const geometries = new Array(edges.length)
+  const geometries = new Array<EdgeGeometry>(edges.length)
 
   edges.forEach((edge, index) => {
-    const from = nodeMeta.get(edge.from)
-    const to = nodeMeta.get(edge.to)
+    const from = nodeMeta.get(edge.from)!
+    const to = nodeMeta.get(edge.to)!
 
     if (edge.from === edge.to) {
       // Self-loop on +cross side
@@ -1218,7 +1246,7 @@ function routeAllEdges(edges, nodeMeta, isBackEdge, edgeRoutingChain, minCross, 
     // Multi-segment smooth spline through dummy waypoints
     const pts = [pStart]
     for (let k = 1; k < chain.length - 1; k += 1) {
-      const d = nodeMeta.get(chain[k])
+      const d = nodeMeta.get(chain[k])!
       pts.push({ main: d.main, cross: d.cross + pairOffset })
     }
     pts.push(pEnd)
@@ -1267,7 +1295,7 @@ function routeAllEdges(edges, nodeMeta, isBackEdge, edgeRoutingChain, minCross, 
   return geometries
 }
 
-function buildSvgPath(segments, toXY) {
+function buildSvgPath(segments: PathSegment[], toXY: (main: number, cross: number) => { x: number; y: number }) {
   return segments.map(seg => {
     const coords = seg.pts.map(pt => {
       const xy = toXY(pt.main, pt.cross)
@@ -1277,11 +1305,11 @@ function buildSvgPath(segments, toXY) {
   }).join(' ')
 }
 
-function roundCoord(n) {
+function roundCoord(n: number) {
   return Math.round(n * 10) / 10
 }
 
-function computeSubgraphBoxes(subgraphs, nodes, nodeMeta, horizontal, padTop, padSide, padBottom) {
+function computeSubgraphBoxes(subgraphs: GraphSubgraph[], nodes: GraphNode[], nodeMeta: Map<string, LayoutNode>, horizontal: boolean, padTop: number, padSide: number, padBottom: number): SubgraphBox[] {
   if (!subgraphs || subgraphs.length === 0) return []
   const boxMap = new Map()
 
@@ -1330,7 +1358,7 @@ function computeSubgraphBoxes(subgraphs, nodes, nodeMeta, horizontal, padTop, pa
     }
   }
 
-  const result = []
+  const result: SubgraphBox[] = []
   for (const sg of subgraphs) {
     const box = boxMap.get(sg.id)
     if (!box) continue

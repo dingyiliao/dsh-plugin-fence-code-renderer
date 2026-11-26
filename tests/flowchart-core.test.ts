@@ -56,8 +56,10 @@ test('parses subgraphs and rejects non-flowchart mermaid diagrams', () => {
     'B --> C[输出]',
   ].join('\n'))
   assert.ok(graph)
-  assert.equal(graph.subgraphs.length, 1)
-  assert.equal(graph.subgraphs[0].title, '处理阶段')
+  const subgraphs = graph.subgraphs
+  assert.ok(subgraphs)
+  assert.equal(subgraphs.length, 1)
+  assert.equal(subgraphs[0].title, '处理阶段')
   assert.equal(graph.nodes[0].subgraphId, 'sg1')
   assert.equal(graph.nodes[1].subgraphId, 'sg1')
   assert.equal(graph.nodes[2].subgraphId, null)

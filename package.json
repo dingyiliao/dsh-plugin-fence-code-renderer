@@ -4,19 +4,18 @@
   "private": true,
   "description": "Renders Markdown sessions with Mermaid-style flowchart fences in DSH.",
   "type": "module",
-  "main": "./index.js",
+  "main": "./dist/index.js",
   "engines": {
     "dsh": ">=0.2.2-rc.3 <0.3.0"
   },
   "exports": {
-    ".": "./index.js",
-    "./client": "./client.js",
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
   "files": [
-    "index.js",
-    "client.js",
+    "dist",
     "cordis.patch.yml",
     "locale/*.json",
     "docs",
@@ -24,7 +23,7 @@
   ],
   "scripts": {
     "build": "node --import tsx build.ts",
-    "check": "tsc --noEmit && node --check index.js && node --check client.js",
+    "check": "tsc --noEmit && node --check dist/index.js && node --check dist/client.js",
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dsh": {
@@ -40,6 +39,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
+    "esbuild": "^0.28.2",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"
   }
