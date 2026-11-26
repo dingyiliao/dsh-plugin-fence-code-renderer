@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Markdown 与图表",
+    "description": "保留 DSH 会话的 Markdown 渲染，并将 Mermaid 与 PlantUML 常用图表（流程图、时序图、类图、状态图、ER 图、组件图）渲染为适配主题的 SVG。",
+    "detail": "docs/DETAIL.zh.md"
+  }
+}

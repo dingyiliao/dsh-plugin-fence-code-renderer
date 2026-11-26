@@ -1,0 +1,35 @@
+{
+  "name": "@local/dsh-markdown-flowchart",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Renders Markdown sessions with Mermaid-style flowchart fences in DSH.",
+  "type": "module",
+  "main": "./index.js",
+  "engines": { "dsh": ">=0.2.2-rc.3 <0.3.0" },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "docs",
+    "icon.svg"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node --check index.js && node --check client.js && node --check build.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "inject": ["@deepseek-ai/dsh-client-ui-chat"]
+    }
+  }
+}

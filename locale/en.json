@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Markdown and diagrams",
+    "description": "Keeps DSH session Markdown rendering and turns common Mermaid and PlantUML fences (flowchart, sequence, class, state, ER, component) into theme-aware SVG diagrams.",
+    "detail": "docs/DETAIL.md"
+  }
+}

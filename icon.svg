@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36" role="img" aria-label="Flowchart">
+  <defs>
+    <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0 0 6 3 0 6Z" fill="#3964fe"/>
+    </marker>
+  </defs>
+  <rect x="3" y="3" width="12" height="8" rx="3" fill="#edf3fe" stroke="#3964fe"/>
+  <path d="M15 7h6" stroke="#3964fe" marker-end="url(#arrow)"/>
+  <path d="M27 7 33 13 27 19 21 13Z" fill="#edf3fe" stroke="#3964fe"/>
+  <path d="M27 19v5" stroke="#3964fe" marker-end="url(#arrow)"/>
+  <rect x="12" y="25" width="12" height="8" rx="4" fill="#edf3fe" stroke="#3964fe"/>
+</svg>

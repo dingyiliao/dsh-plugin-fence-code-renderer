@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="260" viewBox="0 0 720 260">
+  <rect width="720" height="260" rx="24" fill="#f7f9ff"/>
+  <g fill="none" stroke="#3964fe" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M170 70h70m70 0h70m70 0h70"/>
+    <path d="M275 70v76h60"/>
+    <path d="M445 70v76h-60"/>
+  </g>
+  <g fill="#fff" stroke="#3964fe" stroke-width="3">
+    <rect x="50" y="40" width="120" height="60" rx="14"/>
+    <rect x="240" y="40" width="120" height="60" rx="14"/>
+    <rect x="430" y="40" width="120" height="60" rx="14"/>
+    <path d="M335 116 395 146 335 176 275 146Z"/>
+    <rect x="300" y="190" width="120" height="42" rx="21"/>
+  </g>
+  <g fill="#202124" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="18" text-anchor="middle">
+    <text x="110" y="76">开始</text>
+    <text x="300" y="76">处理</text>
+    <text x="490" y="76">完成</text>
+    <text x="335" y="151">判断</text>
+    <text x="360" y="217">重试</text>
+  </g>
+</svg>
