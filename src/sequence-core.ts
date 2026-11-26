@@ -1,4 +1,4 @@
-import { clamp, measureTextWidth, wrapLabel } from './text-metrics.mjs'
+import { clamp, measureTextWidth, wrapLabel } from './text-metrics.ts'
 
 const MAX_SEQ_PARTICIPANTS = 24
 const MAX_SEQ_EVENTS = 160
@@ -7,10 +7,8 @@ const SEQ_UNSUPPORTED = /^(?:!include|!define|!pragma|@startmindmap|@startwbs|@s
 
 /**
  * Parse a Mermaid sequenceDiagram or PlantUML sequence diagram.
- * @param {string} source
- * @returns {object | null}
  */
-function parseSequenceDiagram(source) {
+function parseSequenceDiagram(source: string) {
   if (typeof source !== 'string' || source.length > 20_000) return null
   const rawLines = source.replace(/\r/g, '').replace(/%%\{[\s\S]*?\}%%/gu, '').split('\n')
 
@@ -27,7 +25,7 @@ function parseSequenceDiagram(source) {
   let hasExplicitParticipant = false
   let messageCount = 0
 
-  const ensureParticipant = (rawId, explicitKind, explicitLabel) => {
+  const ensureParticipant = (rawId, explicitKind = '', explicitLabel = '') => {
     const id = String(rawId ?? '').trim().replace(/^["']|["']$/g, '')
     if (!id || !/^[A-Za-z0-9_][\w.-]*$/u.test(id)) return null
     let p = byId.get(id)
@@ -289,15 +287,13 @@ function cleanSeqText(value) {
 
 /**
  * Compute coordinates for a parsed sequence diagram.
- * @param {object} seq
- * @returns {object | null}
  */
-function layoutSequenceDiagram(seq) {
+function layoutSequenceDiagram(seq: ReturnType<typeof parseSequenceDiagram>) {
   if (seq === null || seq.participants.length === 0) return null
 
   const margin = 28
   const participants = seq.participants
-  const indexById = new Map(participants.map((p, i) => [p.id, i]))
+  const indexById = new Map<string, number>(participants.map((p, i) => [p.id, i]))
 
   // 1. Measure participant header boxes
   const pMeta = participants.map((p, idx) => {
@@ -374,7 +370,7 @@ function layoutSequenceDiagram(seq) {
 
   // 3. Layout vertical events, activations, and combined fragments
   const positionedEvents = []
-  const activeStacks = new Map(pMeta.map(p => [p.id, []]))
+  const activeStacks = new Map<string, Array<{ startY: number; depth: number }>>(pMeta.map(p => [p.id, []]))
   const activations = []
   const fragmentStack = []
   const fragments = []
@@ -600,7 +596,7 @@ function layoutSequenceDiagram(seq) {
   }
 
   return {
-    kind: 'sequence',
+    kind: 'sequence' as const,
     title: seq.title,
     width,
     height,

@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { parseAndLayoutDiagram } from '../src/diagram-dispatcher.mjs'
+import { parseAndLayoutDiagram } from '../src/diagram-dispatcher.ts'
+
+type DiagramLayout = NonNullable<ReturnType<typeof parseAndLayoutDiagram>>
+
+function expectLayoutKind<K extends DiagramLayout['kind']>(
+  layout: DiagramLayout | null,
+  kind: K,
+): asserts layout is Extract<DiagramLayout, { kind: K }> {
+  assert.ok(layout)
+  assert.equal(layout.kind, kind)
+}
 
 test('renders Mermaid sequenceDiagram with activations, fragments, notes, and self-calls', () => {
   const layout = parseAndLayoutDiagram('mermaid', [
@@ -22,8 +32,7 @@ test('renders Mermaid sequenceDiagram with activations, fragments, notes, and se
     'deactivate A',
   ].join('\n'))
 
-  assert.ok(layout)
-  assert.equal(layout.kind, 'sequence')
+  expectLayoutKind(layout, 'sequence')
   assert.equal(layout.title, '登录认证时序')
   assert.equal(layout.participants.length, 3)
   assert.equal(layout.participants[0].kind, 'actor')
@@ -46,8 +55,7 @@ test('renders PlantUML sequence diagram with quoted aliases and dividers', () =>
     '@enduml',
   ].join('\n'))
 
-  assert.ok(layout)
-  assert.equal(layout.kind, 'sequence')
+  expectLayoutKind(layout, 'sequence')
   assert.equal(layout.participants.map(p => p.label).join(','), '前端应用,后端 API')
   assert.ok(layout.events.some(e => e.type === 'divider' && e.text === '初始化'))
   assert.ok(layout.events.some(e => e.type === 'note'))
@@ -67,8 +75,7 @@ test('renders Mermaid and PlantUML class diagrams with UML markers and compartme
     'Animal <|-- Dog : inherits',
   ].join('\n'))
 
-  assert.ok(mLayout)
-  assert.equal(mLayout.kind, 'flowchart')
+  expectLayoutKind(mLayout, 'flowchart')
   assert.equal(mLayout.nodes[0].shape, 'uml_class')
   assert.equal(mLayout.nodes[0].sections.stereotype, 'abstract')
   assert.equal(mLayout.edges[0].startMarker, 'hollow_triangle')
@@ -87,7 +94,7 @@ test('renders Mermaid and PlantUML class diagrams with UML markers and compartme
     '@enduml',
   ].join('\n'))
 
-  assert.ok(pLayout)
+  expectLayoutKind(pLayout, 'flowchart')
   assert.equal(pLayout.nodes.length, 3)
   assert.equal(pLayout.edges[0].style, 'dashed')
   assert.equal(pLayout.edges[0].startMarker, 'hollow_triangle')
@@ -105,7 +112,7 @@ test('renders Mermaid stateDiagram-v2 and erDiagram', () => {
     'Active --> [*]',
   ].join('\n'))
 
-  assert.ok(stateLayout)
+  expectLayoutKind(stateLayout, 'flowchart')
   assert.ok(stateLayout.nodes.some(n => n.shape === 'state_start'))
   assert.ok(stateLayout.nodes.some(n => n.shape === 'state_end'))
   assert.equal(stateLayout.subgraphs.length, 1)
@@ -119,7 +126,7 @@ test('renders Mermaid stateDiagram-v2 and erDiagram', () => {
     '}',
   ].join('\n'))
 
-  assert.ok(erLayout)
+  expectLayoutKind(erLayout, 'flowchart')
   assert.equal(erLayout.nodes.length, 2)
   assert.equal(erLayout.edges[0].label, '1 places 0..*')
 })
@@ -138,7 +145,7 @@ test('renders PlantUML component/usecase diagrams and falls back cleanly on comp
     '@enduml',
   ].join('\n'))
 
-  assert.ok(compLayout)
+  expectLayoutKind(compLayout, 'flowchart')
   assert.equal(compLayout.subgraphs.length, 1)
   assert.ok(compLayout.nodes.some(n => n.shape === 'actor'))
   assert.ok(compLayout.nodes.some(n => n.shape === 'cylinder'))

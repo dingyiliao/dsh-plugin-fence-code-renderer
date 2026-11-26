@@ -48,11 +48,12 @@ flowchart TD
 
 ## 架构
 
-`src/diagram-dispatcher.mjs` 选择解析器并返回布局模型。`src/` 中的流程图、时序图和 UML 模块负责解析与布局，`src/client-template.js` 将结果渲染为 SVG。`build.mjs` 把这些模块组装成供 DSH 加载的 `client.js`。插件入口与 Loader 补丁分别为 `index.js` 和 `cordis.patch.yml`。
+`src/diagram-dispatcher.ts` 选择解析器并返回布局模型。`src/` 中的流程图、时序图和 UML 模块负责解析与布局，`src/client-template.ts` 将结果渲染为 SVG。`build.ts` 将这些 TypeScript 源码编译为供 DSH 加载的 `client.js` 和 `index.js`。Host 入口与 Loader 补丁分别为 `src/index.ts` 和 `cordis.patch.yml`。
 
 ## 开发
 
 ```sh
+npm ci
 npm run build
 npm test
 npm run check

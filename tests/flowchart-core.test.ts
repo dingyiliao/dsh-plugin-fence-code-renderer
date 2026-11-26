@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { layoutFlowchart, measureTextWidth, parseFlowchart, wrapLabel } from '../src/flowchart-core.mjs'
+import { layoutFlowchart, measureTextWidth, parseFlowchart, wrapLabel } from '../src/flowchart-core.ts'
 
 test('parses directions, shapes, chained edges, and edge labels', () => {
   const graph = parseFlowchart([

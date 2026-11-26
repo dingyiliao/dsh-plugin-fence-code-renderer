@@ -3,6 +3,8 @@
  * Each parser produces a graph object compatible with layoutFlowchart().
  */
 
+import type { ParsedGraph } from './flowchart-core.ts'
+
 const UML_UNSUPPORTED = /^(?:!include|!define|!pragma|!procedure|!function|@startmindmap|@startwbs|@startgantt|@startsalt|@startjson|@startyaml|@startditaa|repeat\b|while\s*\(|fork\b|\|[^|]+\||nwdiag\b|salt\b)/iu
 
 // ==================== Class Diagram (Mermaid + PlantUML) ====================
@@ -12,10 +14,8 @@ const CLASS_REL_RE = new RegExp('^(' + UML_ID + ')(?:\\s+"([^"]*)")?\\s+(<\\|--|
 
 /**
  * Parse a Mermaid classDiagram or PlantUML class diagram.
- * @param {string} source
- * @returns {object | null}
  */
-function parseClassDiagram(source) {
+function parseClassDiagram(source: string): ParsedGraph | null {
   if (typeof source !== 'string' || source.length > 20_000) return null
   const rawLines = source.replace(/\r/g, '').replace(/%%\{[\s\S]*?\}%%/gu, '').split('\n')
 
@@ -29,7 +29,7 @@ function parseClassDiagram(source) {
   let currentClass = null
   let inSkipBlock = false
 
-  const ensureClassNode = (id, displayTitle, stereotype) => {
+  const ensureClassNode = (id, displayTitle = '', stereotype = '') => {
     const cleanId = String(id ?? '').trim()
     if (!cleanId || !/^[A-Za-z0-9_][\w.-]*$/u.test(cleanId)) return null
     let node = byId.get(cleanId)
@@ -224,10 +224,8 @@ function decodeClassRelation(op, left, right) {
 
 /**
  * Parse a Mermaid stateDiagram / stateDiagram-v2 document.
- * @param {string} source
- * @returns {object | null}
  */
-function parseStateDiagram(source) {
+function parseStateDiagram(source: string): ParsedGraph | null {
   if (typeof source !== 'string' || source.length > 20_000) return null
   const rawLines = source.replace(/\r/g, '').replace(/%%\{[\s\S]*?\}%%/gu, '').split('\n')
 
@@ -241,7 +239,7 @@ function parseStateDiagram(source) {
   let endCount = 0
   let inNote = false
 
-  const ensureStateNode = (id, label, shape) => {
+  const ensureStateNode = (id, label = '', shape = 'rounded') => {
     let node = byId.get(id)
     if (node === undefined) {
       if (nodes.length >= 80) return null
@@ -364,10 +362,8 @@ const ER_REL_RE = new RegExp('^([A-Za-z0-9_][\\w-]*)\\s+(' + ER_CARD + ')(\\.\\.
 
 /**
  * Parse a Mermaid erDiagram document.
- * @param {string} source
- * @returns {object | null}
  */
-function parseErDiagram(source) {
+function parseErDiagram(source: string): ParsedGraph | null {
   if (typeof source !== 'string' || source.length > 20_000) return null
   const rawLines = source.replace(/\r/g, '').replace(/%%\{[\s\S]*?\}%%/gu, '').split('\n')
 
@@ -461,10 +457,8 @@ function formatErCard(sym) {
 /**
  * Parse a PlantUML Component / UseCase / Deployment graph.
  * Returns null for unsupported activity/swimlane/complex syntax so it falls back cleanly.
- * @param {string} source
- * @returns {object | null}
  */
-function parsePlantUmlGraph(source) {
+function parsePlantUmlGraph(source: string): ParsedGraph | null {
   if (typeof source !== 'string' || source.length > 20_000) return null
   const rawLines = source.replace(/\r/g, '').split('\n')
 

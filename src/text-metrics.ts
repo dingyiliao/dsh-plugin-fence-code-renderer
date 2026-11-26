@@ -5,11 +5,8 @@
 /**
  * Measure approximate visual width of text in pixels at a given font size.
  * Accounts for wide CJK/fullwidth glyphs versus narrower Latin characters.
- * @param {string} text
- * @param {number} [fontSize=13]
- * @returns {number}
  */
-function measureTextWidth(text, fontSize = 13) {
+function measureTextWidth(text: string, fontSize = 13): number {
   let units = 0
   for (const ch of String(text ?? '')) {
     const code = ch.codePointAt(0) ?? 0
@@ -35,12 +32,8 @@ function measureTextWidth(text, fontSize = 13) {
 
 /**
  * Split label on explicit line breaks (<br/>, \n) and wrap lines by visual width.
- * @param {string} value
- * @param {number} [maxLineWidth=156]
- * @param {number} [fontSize=13]
- * @returns {string[]}
  */
-function wrapLabel(value, maxLineWidth = 156, fontSize = 13) {
+function wrapLabel(value: string, maxLineWidth = 156, fontSize = 13): string[] {
   const raw = String(value ?? '')
     .replace(/<br\s*\/?>/giu, '\n')
     .replace(/\\n/gu, '\n')
@@ -86,7 +79,7 @@ function wrapLabel(value, maxLineWidth = 156, fontSize = 13) {
   return lines.length > 0 ? lines : [' ']
 }
 
-function clamp(val, min, max) {
+function clamp(val: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, val))
 }
 

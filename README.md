@@ -48,11 +48,12 @@ The renderer supports a practical subset of Mermaid and PlantUML. Gantt charts, 
 
 ## Architecture
 
-`src/diagram-dispatcher.mjs` selects a parser and returns a layout model. The flowchart, sequence, and UML modules in `src/` parse and lay out diagrams; `src/client-template.js` renders the result as SVG. `build.mjs` assembles these modules into the `client.js` loaded by DSH. The plugin entry point and loader patch are `index.js` and `cordis.patch.yml`.
+`src/diagram-dispatcher.ts` selects a parser and returns a layout model. The flowchart, sequence, and UML modules in `src/` parse and lay out diagrams; `src/client-template.ts` renders the result as SVG. `build.ts` compiles these TypeScript sources into the `client.js` and `index.js` files loaded by DSH. The Host entry point and loader patch are `src/index.ts` and `cordis.patch.yml`.
 
 ## Development
 
 ```sh
+npm ci
 npm run build
 npm test
 npm run check

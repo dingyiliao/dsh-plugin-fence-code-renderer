@@ -5,7 +5,29 @@
  * longest-path layering, crossing minimization, and smooth edge routing.
  */
 
-import { clamp, measureTextWidth, wrapLabel } from './text-metrics.mjs'
+import { clamp, measureTextWidth, wrapLabel } from './text-metrics.ts'
+
+export type ParsedGraph = {
+  direction: string
+  nodes: Array<{
+    id: string
+    label: string
+    shape: string
+    subgraphId?: string | null
+    sections?: { stereotype?: string; title?: string; attrs?: string[]; methods?: string[] }
+  }>
+  edges: Array<{
+    from: string
+    to: string
+    label: string
+    style?: string
+    hasStartArrow?: boolean
+    hasEndArrow?: boolean
+    startMarker?: string
+    endMarker?: string
+  }>
+  subgraphs?: Array<{ id: string; title: string; parentId: string | null }>
+}
 
 const MAX_SOURCE_LENGTH = 20_000
 const MAX_NODES = 80
@@ -33,10 +55,8 @@ const SHAPE_DEFS = [
 
 /**
  * Parse a Mermaid-style flowchart document.
- * @param {string} source - Fenced flowchart source.
- * @returns {{ direction: string, nodes: Array<{ id: string, label: string, shape: string, subgraphId: string | null }>, edges: Array<{ from: string, to: string, label: string, style: string, hasStartArrow: boolean, hasEndArrow: boolean }>, subgraphs: Array<{ id: string, title: string, parentId: string | null }> } | null}
  */
-function parseFlowchart(source) {
+function parseFlowchart(source: string): ParsedGraph | null {
   if (typeof source !== 'string' || source.length > MAX_SOURCE_LENGTH) return null
   const cleaned = source.replace(/\r/g, '').replace(/%%\{[\s\S]*?\}%%/gu, '')
   const rawLines = cleaned.split('\n')
@@ -469,10 +489,8 @@ function matchEdgeOperator(str, pos) {
 
 /**
  * Compute node dimensions, ranks, crossing-minimized coordinates, subgraphs, and routed edge paths.
- * @param {{ direction: string, nodes: Array<{ id: string, label: string, shape: string, subgraphId?: string | null }>, edges: Array<{ from: string, to: string, label: string, style?: string, hasStartArrow?: boolean, hasEndArrow?: boolean }>, subgraphs?: Array<{ id: string, title: string, parentId: string | null }> }} graph
- * @returns {object | null}
  */
-function layoutFlowchart(graph) {
+function layoutFlowchart(graph: ParsedGraph | null) {
   if (graph === null || graph.nodes.length === 0) return null
 
   const horizontal = graph.direction === 'LR' || graph.direction === 'RL'
@@ -497,7 +515,7 @@ function layoutFlowchart(graph) {
   const { isBackEdge, ranks } = assignRanks(graph.nodes, graph.edges)
 
   // 3. Build rank layers + insert dummy waypoints for skip-level DAG edges
-  const layers = new Map()
+  const layers = new Map<number, any[]>()
   const ensureLayer = (r) => {
     if (!layers.has(r)) layers.set(r, [])
     return layers.get(r)
@@ -509,8 +527,8 @@ function layoutFlowchart(graph) {
     ensureLayer(r).push(meta)
   }
 
-  const dagAdjOut = new Map()
-  const dagAdjIn = new Map()
+  const dagAdjOut = new Map<string, string[]>()
+  const dagAdjIn = new Map<string, string[]>()
   const addDagLink = (uId, vId) => {
     if (!dagAdjOut.has(uId)) dagAdjOut.set(uId, [])
     if (!dagAdjIn.has(vId)) dagAdjIn.set(vId, [])
@@ -561,7 +579,7 @@ function layoutFlowchart(graph) {
   }
 
   // 5. Compute rank-gap padding (extra gap if labeled edges cross between ranks r and r+1)
-  const rankGapAfter = new Map()
+  const rankGapAfter = new Map<number, number>()
   for (let r = 0; r < maxRank; r += 1) {
     let extra = 0
     for (let i = 0; i < graph.edges.length; i += 1) {
@@ -582,7 +600,7 @@ function layoutFlowchart(graph) {
   // Add extra gap if a subgraph starts at rank r+1 with a title header
   const subgraphs = graph.subgraphs ?? []
   if (subgraphs.length > 0 && !horizontal) {
-    const sgMinRank = new Map()
+    const sgMinRank = new Map<string, number>()
     for (const node of graph.nodes) {
       if (!node.subgraphId) continue
       const r = ranks.get(node.id) ?? 0
@@ -705,7 +723,7 @@ function layoutFlowchart(graph) {
   const positionedNodes = graph.nodes.map(node => {
     const meta = nodeMeta.get(node.id)
     const pt = toXY(meta.main, meta.cross)
-    const item = {
+    const item: { id: string; label: string; shape: string; subgraphId: string | null; x: number; y: number; width: number; height: number; lines: string[]; sections?: { stereotype?: string } } = {
       id: meta.id,
       label: meta.label,
       shape: meta.shape,
@@ -765,7 +783,7 @@ function layoutFlowchart(graph) {
   const maxNodeHeight = Math.max(...positionedNodes.map(n => n.height))
 
   return {
-    kind: 'flowchart',
+    kind: 'flowchart' as const,
     direction: graph.direction,
     width,
     height,
@@ -882,14 +900,14 @@ function measureEdgeLabel(label) {
  * Detect cycle back-edges via DFS and assign longest-path ranks on the resulting DAG.
  */
 function assignRanks(nodes, edges) {
-  const outgoing = new Map(nodes.map(n => [n.id, []]))
-  const inCount = new Map(nodes.map(n => [n.id, 0]))
+  const outgoing = new Map<string, Array<{ to: string; index: number }>>(nodes.map(n => [n.id, []]))
+  const inCount = new Map<string, number>(nodes.map(n => [n.id, 0]))
   edges.forEach((edge, index) => {
     outgoing.get(edge.from)?.push({ to: edge.to, index })
     inCount.set(edge.to, (inCount.get(edge.to) ?? 0) + 1)
   })
 
-  const state = new Map() // 0 = unvisited, 1 = visiting, 2 = visited
+  const state = new Map<string, number>() // 0 = unvisited, 1 = visiting, 2 = visited
   const isBackEdge = edges.map(() => false)
 
   const dfs = (u) => {
@@ -918,15 +936,15 @@ function assignRanks(nodes, edges) {
   }
 
   // Kahn's topological longest-path ranking on DAG edges
-  const dagOut = new Map(nodes.map(n => [n.id, []]))
-  const dagIn = new Map(nodes.map(n => [n.id, 0]))
+  const dagOut = new Map<string, string[]>(nodes.map(n => [n.id, []]))
+  const dagIn = new Map<string, number>(nodes.map(n => [n.id, 0]))
   edges.forEach((edge, index) => {
     if (isBackEdge[index]) return
     dagOut.get(edge.from)?.push(edge.to)
     dagIn.set(edge.to, (dagIn.get(edge.to) ?? 0) + 1)
   })
 
-  const ranks = new Map(nodes.map(n => [n.id, 0]))
+  const ranks = new Map<string, number>(nodes.map(n => [n.id, 0]))
   const queue = nodes.filter(n => (dagIn.get(n.id) ?? 0) === 0).map(n => n.id)
   const topoOrder = []
 
@@ -945,7 +963,7 @@ function assignRanks(nodes, edges) {
   }
 
   // Pull root nodes closer to their shallowest child so side-inputs don't float at rank 0
-  const dagInCountOrig = new Map(nodes.map(n => [n.id, 0]))
+  const dagInCountOrig = new Map<string, number>(nodes.map(n => [n.id, 0]))
   edges.forEach((edge, index) => {
     if (!isBackEdge[index]) dagInCountOrig.set(edge.to, (dagInCountOrig.get(edge.to) ?? 0) + 1)
   })
@@ -965,10 +983,10 @@ function assignRanks(nodes, edges) {
 
 function sortLayerByBarycenter(layer, neighborLayer, adj) {
   if (layer.length <= 1 || neighborLayer.length === 0) return
-  const neighborPos = new Map()
+  const neighborPos = new Map<string, number>()
   neighborLayer.forEach((node, idx) => neighborPos.set(node.id, idx))
 
-  const scores = new Map()
+  const scores = new Map<string, number>()
   layer.forEach((node, idx) => {
     const neighbors = (adj.get(node.id) ?? []).filter(id => neighborPos.has(id))
     if (neighbors.length === 0) {
@@ -979,7 +997,7 @@ function sortLayerByBarycenter(layer, neighborLayer, adj) {
     }
   })
 
-  const origIdx = new Map(layer.map((n, i) => [n.id, i]))
+  const origIdx = new Map<string, number>(layer.map((n, i) => [n.id, i]))
   layer.sort((a, b) => {
     const diff = (scores.get(a.id) ?? 0) - (scores.get(b.id) ?? 0)
     return Math.abs(diff) > 1e-6 ? diff : (origIdx.get(a.id) ?? 0) - (origIdx.get(b.id) ?? 0)

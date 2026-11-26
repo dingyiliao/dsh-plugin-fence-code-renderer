@@ -1,4 +1,9 @@
-window.__ModuleLoader__.load({
+// These names are supplied by the modules injected at the build marker below.
+type DiagramLayout = NonNullable<ReturnType<typeof import('./diagram-dispatcher.ts').parseAndLayoutDiagram>>
+declare const SUPPORTED_FENCE_LANGUAGES: string[]
+declare function parseAndLayoutDiagram(lang: string, source: string): DiagramLayout | null
+
+(window as unknown as Window & { __ModuleLoader__: { load(module: unknown): void } }).__ModuleLoader__.load({
   id: '@local/dsh-markdown-flowchart',
   factory(require) {
     const React = require('react')
@@ -581,7 +586,7 @@ window.__ModuleLoader__.load({
 
     function renderEdge(edge, mIds, key) {
       const strokeWidth = edge.style === 'thick' ? 2.5 : 1.5
-      const pathProps = {
+      const pathProps: Record<string, unknown> = {
         key: 'line',
         d: edge.path,
         fill: 'none',

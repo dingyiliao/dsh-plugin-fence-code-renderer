@@ -1,8 +1,9 @@
-import { layoutFlowchart, parseFlowchart } from './flowchart-core.mjs'
-import { layoutSequenceDiagram, parseSequenceDiagram } from './sequence-core.mjs'
-import { parseClassDiagram, parseErDiagram, parsePlantUmlGraph, parseStateDiagram } from './uml-graph-core.mjs'
+import { layoutFlowchart, parseFlowchart } from './flowchart-core.ts'
+import { layoutSequenceDiagram, parseSequenceDiagram } from './sequence-core.ts'
+import { parseClassDiagram, parseErDiagram, parsePlantUmlGraph, parseStateDiagram } from './uml-graph-core.ts'
 
 const SUPPORTED_FENCE_LANGUAGES = ['flowchart', 'graph', 'mermaid', 'plantuml', 'puml', 'uml']
+type DiagramLayout = NonNullable<ReturnType<typeof layoutFlowchart>> | NonNullable<ReturnType<typeof layoutSequenceDiagram>>
 
 /**
  * Parse and lay out a supported diagram fence into a renderable model.
@@ -12,7 +13,7 @@ const SUPPORTED_FENCE_LANGUAGES = ['flowchart', 'graph', 'mermaid', 'plantuml', 
  * @param {string} source
  * @returns {object | null}
  */
-function parseAndLayoutDiagram(lang, source) {
+function parseAndLayoutDiagram(lang: string, source: string): DiagramLayout | null {
   if (typeof source !== 'string' || source.length === 0 || source.length > 20_000) return null
   const normLang = String(lang ?? '').trim().toLowerCase()
   const lines = source.replace(/\r/g, '').split('\n')
